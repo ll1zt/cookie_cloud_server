@@ -1,0 +1,14 @@
+services:
+  cookie-cloud:
+    image: ghcr.io/ll1zt/cookie_cloud_server:latest
+    container_name: cookie-cloud-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      - COOKIE_CLOUD_SERVER_PASSWORD=${COOKIE_CLOUD_SERVER_PASSWORD}
+      - PORT=4000
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/cookie_cloud_server.db}
+      - RELEASE_COOKIE=${RELEASE_COOKIE:-cookie}
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v25
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+
+    - name: Build Docker image with Nix
+      run: |
+        nix build .#docker
+        # The build results in a result symlink which is a tarball
+        docker load < result
+
+    - name: Log in to the Container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Tag and Push Docker image
+      run: |
+        IMAGE_ID=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        # Change all uppercase to lowercase
+        IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+        
+        docker tag ghcr.io/ll1zt/cookie_cloud_server:latest $IMAGE_ID:latest
+        docker tag ghcr.io/ll1zt/cookie_cloud_server:latest $IMAGE_ID:${{ github.sha }}
+        
+        docker push $IMAGE_ID:latest
+        docker push $IMAGE_ID:${{ github.sha }}
