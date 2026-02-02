@@ -53,6 +53,9 @@
           name = "ghcr.io/ll1zt/cookie_cloud_server";
           tag = "latest";
 
+          # Limit the maximum number of layers to prevent GHCR from reporting an "unknown blob" error.
+          maxLayers = 100;
+
           contents = [
             pkgs.coreutils
             pkgs.bash
