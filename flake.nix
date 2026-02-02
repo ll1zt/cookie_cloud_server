@@ -78,6 +78,7 @@
               "DATABASE_PATH=/app/data/cookie_cloud_server.db"
               "LANG=C.UTF-8"
               "MIX_ENV=prod"
+              "RELEASE_DISTRIBUTION=name"
               "RELEASE_NODE=${pname}@127.0.0.1"
               "RELEASE_TMP=/tmp"
               "RELEASE_COOKIE=cookie"
