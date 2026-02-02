@@ -2,12 +2,11 @@ name: Deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -17,35 +16,38 @@ jobs:
       packages: write
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install Nix
-      uses: cachix/install-nix-action@v25
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
+      - name: Install Nix
+        uses: cachix/install-nix-action@v25
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
-    - name: Build Docker image with Nix
-      run: |
-        nix build .#docker
-        # The build results in a result symlink which is a tarball
-        docker load < result
+      - name: Build Docker image with Nix
+        run: |
+          nix build .#docker
+          docker load < result
 
-    - name: Log in to the Container registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Tag and Push Docker image
-      run: |
-        IMAGE_ID=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        # Change all uppercase to lowercase
-        IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
-        
-        docker tag ghcr.io/ll1zt/cookie_cloud_server:latest $IMAGE_ID:latest
-        docker tag ghcr.io/ll1zt/cookie_cloud_server:latest $IMAGE_ID:${{ github.sha }}
-        
-        docker push $IMAGE_ID:latest
-        docker push $IMAGE_ID:${{ github.sha }}
+      - name: Tag and Push Docker image
+        run: |
+          # Use repository owner and name, convert to strictly lowercase
+          IMAGE_ID=${{ env.REGISTRY }}/${{ github.repository }}
+          IMAGE_ID=$(echo $IMAGE_ID | tr '[:upper:]' '[:lower:]')
+
+          echo "Pushing to $IMAGE_ID"
+
+          # Tag the local image (which Nix named as ghcr.io/ll1zt/cookie_cloud_server)
+          # to the official repository path
+          docker tag ghcr.io/ll1zt/cookie_cloud_server:latest $IMAGE_ID:latest
+          docker tag ghcr.io/ll1zt/cookie_cloud_server:latest $IMAGE_ID:${{ github.sha }}
+
+          docker push $IMAGE_ID:latest
+          docker push $IMAGE_ID:${{ github.sha }}
