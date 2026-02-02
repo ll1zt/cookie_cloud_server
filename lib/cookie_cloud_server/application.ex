@@ -11,6 +11,8 @@ defmodule CookieCloudServer.Application do
 
     children = [
       CookieCloudServer.Repo,
+      # Automatically run database migration (blocks until completion)
+      CookieCloudServer.Migrator,
       {Bandit, plug: CookieCloudServer.Router, port: port}
       # Starts a worker by calling: CookieCloudServer.Worker.start_link(arg)
       # {CookieCloudServer.Worker, arg}
