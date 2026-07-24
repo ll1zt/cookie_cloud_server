@@ -31,45 +31,43 @@ defmodule CookieCloudServer.Router do
       if is_nil(password) do
         render_json(conn, 500, %{error: "Server configuration error: password missing"})
       else
-        decrypted_data =
-          Crypto.cookie_decrypt(
-            uuid,
-            encrypted,
-            password,
-            crypto_type
-          )
+        case Crypto.cookie_decrypt(uuid, encrypted, password, crypto_type) do
+          {:ok, decrypted_data} ->
+            update_time_str = decrypted_data["update_time"]
 
-        update_time_str = decrypted_data["update_time"]
+            client_time =
+              case DateTime.from_iso8601(update_time_str) do
+                {:ok, dt, _offset} ->
+                  DateTime.to_naive(dt)
 
-        client_time =
-          case DateTime.from_iso8601(update_time_str) do
-            {:ok, dt, _offset} ->
-              DateTime.to_naive(dt)
+                {:error, _reason} ->
+                  NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+              end
 
-            {:error, _reason} ->
-              NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
-          end
+            params = %{
+              uuid: uuid,
+              data: decrypted_data,
+              client_updated_at: client_time
+            }
 
-        params = %{
-          uuid: uuid,
-          data: decrypted_data,
-          client_updated_at: client_time
-        }
+            result =
+              %SyncRecord{}
+              |> SyncRecord.changeset(params)
+              |> Repo.insert(
+                on_conflict: :replace_all,
+                conflict_target: :uuid
+              )
 
-        result =
-          %SyncRecord{}
-          |> SyncRecord.changeset(params)
-          |> Repo.insert(
-            on_conflict: :replace_all,
-            conflict_target: :uuid
-          )
+            case result do
+              {:ok, _struct} ->
+                render_json(conn, 200, %{action: "done"})
 
-        case result do
-          {:ok, _struct} ->
-            render_json(conn, 200, %{action: "done"})
+              {:error, _changeset} ->
+                render_json(conn, 500, %{error: "Database error"})
+            end
 
-          {:error, _changeset} ->
-            render_json(conn, 500, %{error: "Database error"})
+          {:error, _reason} ->
+            render_json(conn, 400, %{error: "Decrypt failed"})
         end
       end
     end
