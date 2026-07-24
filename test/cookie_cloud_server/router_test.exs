@@ -157,6 +157,46 @@ defmodule CookieCloudServer.RouterTest do
     assert Jason.decode!(conn.resp_body)["status"] == "OK"
   end
 
+  test "admin format=header returns Cookie header string for RSSHub" do
+    plain = %{
+      "cookie_data" => %{
+        "bilibili.com" => [
+          %{"name" => "SESSDATA", "value" => "abc", "domain" => ".bilibili.com"},
+          %{"name" => "bili_jct", "value" => "xyz", "domain" => ".bilibili.com"}
+        ]
+      }
+    }
+
+    {_p, encrypted} = build_encrypted(@uuid, @server_password, plain)
+
+    conn =
+      conn(:post, "/update", %{
+        "uuid" => @uuid,
+        "encrypted" => encrypted,
+        "crypto_type" => "aes-128-cbc-fixed"
+      })
+      |> put_req_header("content-type", "application/json")
+      |> Router.call(@opts)
+
+    assert conn.status == 200
+
+    conn =
+      conn(:get, "/get/#{@uuid}?format=header&domain=bilibili.com")
+      |> put_req_header("authorization", "Bearer #{@server_password}")
+      |> Router.call(@opts)
+
+    assert conn.status == 200
+    assert conn.resp_body == "SESSDATA=abc; bili_jct=xyz"
+
+    conn =
+      conn(:get, "/get/#{@uuid}?format=env&domain=bilibili.com&env=BILIBILI_COOKIE_123")
+      |> put_req_header("authorization", "Bearer #{@server_password}")
+      |> Router.call(@opts)
+
+    assert conn.status == 200
+    assert conn.resp_body == "BILIBILI_COOKIE_123=SESSDATA=abc; bili_jct=xyz"
+  end
+
   defp seed_record(uuid, encrypted, crypto_type) do
     %SyncRecord{}
     |> SyncRecord.changeset(%{

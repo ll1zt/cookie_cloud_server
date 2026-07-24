@@ -98,15 +98,45 @@ docker load < result
 | Admin export | `Authorization: Bearer <COOKIE_CLOUD_SERVER_PASSWORD>` or `?token=` | see formats below |
 
 Admin query params:
-- `format`: `raw` (default, flat cookie list), `full` (entire decrypted object), `netscape` (`cookies.txt`)
-- `domain`: optional domain suffix filter (admin modes)
+- `format`:
+  - `raw` — flat cookie list JSON
+  - `full` — entire decrypted object
+  - `netscape` — `cookies.txt`
+  - `header` — `name=value; name2=value2` (**RSSHub / curl Cookie header**)
+  - `env` — one dotenv line: `ENV=name=value; ...` (for RSSHub `secretFiles`)
+- `domain`: optional domain filter (e.g. `bilibili.com`)
+- `env`: env var name when `format=env` (default `COOKIE`)
 - `crypto_type`: optional override for client decrypt path
+
+### RSSHub integration
+
+RSSHub reads platform cookies from environment variables such as `BILIBILI_COOKIE_<uid>`, `ZHIHU_COOKIES`, etc. (see [RSSHub config](https://docs.rsshub.app/zh/deploy/config)).
+
+With this server (password set + browser extension synced using the **same** password):
+
+```bash
+# Cookie header only
+curl -sS -H "Authorization: Bearer $COOKIE_CLOUD_SERVER_PASSWORD" \
+  "http://127.0.0.1:4000/get/$UUID?format=header&domain=bilibili.com"
+
+# Direct dotenv line for /etc/secrets/rsshub.env (or append into secretFiles)
+curl -sS -H "Authorization: Bearer $COOKIE_CLOUD_SERVER_PASSWORD" \
+  "http://127.0.0.1:4000/get/$UUID?format=env&domain=bilibili.com&env=BILIBILI_COOKIE_12345678" \
+  >> /etc/secrets/rsshub.env
+```
+
+NixOS example (`secretFiles = [ "/etc/secrets/rsshub.env" ];`): refresh that file periodically (cron/systemd timer) from CookieCloud, then restart or reload RSSHub if your module does not watch the file.
+
+Recommended flow:
+1. Browser CookieCloud extension → this server (`/update`, ciphertext + optional decrypt cache)
+2. Timer pulls `format=header|env` for each site
+3. Write RSSHub secret env file → RSSHub uses cookies on next request
 
 ## Compatibility notes
 
 This server can be used as a drop-in host for the official CookieCloud extension and scripts (`examples/decrypt.py`, Playwright helpers): they upload ciphertext and download ciphertext (or decrypt locally / with client password).
 
-Admin export features are **extras** for automation when you intentionally share the sync password with the server.
+Admin export features are **extras** for automation (e.g. RSSHub) when you intentionally share the sync password with the server.
 
 ## Development
 

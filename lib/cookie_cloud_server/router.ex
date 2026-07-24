@@ -1,7 +1,8 @@
 defmodule CookieCloudServer.Router do
   use Plug.Router
 
-  alias CookieCloudServer.{Auth, Reader, Sync, Adapters.Netscape}
+  alias CookieCloudServer.{Auth, Reader, Sync}
+  alias CookieCloudServer.Adapters.{Header, Netscape}
   alias CookieCloudServer.Plugs.{ApiRoot, Cors, RateLimit}
 
   @body_length 50_000_000
@@ -126,24 +127,47 @@ defmodule CookieCloudServer.Router do
         domain_filter = conn.query_params["domain"]
         format = Map.get(conn.query_params, "format", "raw")
 
+        cookies = Reader.cookies_from_data(data, domain_filter)
+
         case format do
           "netscape" ->
-            cookies = Reader.cookies_from_data(data, domain_filter)
             text = Netscape.dump_string(cookies)
 
             conn
             |> put_resp_content_type("text/plain")
             |> send_resp(200, text)
 
+          # HTTP Cookie header: name=value; name2=value2  (RSSHub / curl style)
+          "header" ->
+            text = Header.dump_string(cookies)
+
+            conn
+            |> put_resp_content_type("text/plain; charset=utf-8")
+            |> send_resp(200, text)
+
+          # Single dotenv line for RSSHub secretFiles:
+          #   BILIBILI_COOKIE_xxx=SESSDATA=...; bili_jct=...
+          # Query: format=env&domain=bilibili.com&env=BILIBILI_COOKIE_12345678
+          "env" ->
+            env_name = conn.query_params["env"] || "COOKIE"
+            text = Header.dump_env_line(cookies, env_name)
+
+            conn
+            |> put_resp_content_type("text/plain; charset=utf-8")
+            |> send_resp(200, text)
+
           "full" ->
             render_json(conn, 200, data)
 
           "raw" ->
-            cookies = Reader.cookies_from_data(data, domain_filter)
             render_json(conn, 200, cookies)
 
           _ ->
-            send_resp(conn, 400, "Unknown format. Supported: raw, full, netscape")
+            send_resp(
+              conn,
+              400,
+              "Unknown format. Supported: raw, full, netscape, header, env"
+            )
         end
 
       {:error, :no_plaintext} ->
