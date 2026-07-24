@@ -10,3 +10,5 @@ config :cookie_cloud_server, CookieCloudServer.Repo,
   pool_size: 5
 
 config :logger, :console, format: "$time $metadata[$level] $message\n"
+
+import_config "#{config_env()}.exs"

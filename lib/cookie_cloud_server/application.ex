@@ -7,20 +7,27 @@ defmodule CookieCloudServer.Application do
 
   @impl true
   def start(_type, _args) do
-    port = Application.get_env(:cookie_cloud_server, CookieCloudServer.Router)[:port] || 4000
-
-    children = [
-      CookieCloudServer.Repo,
-      # Automatically run database migration (blocks until completion)
-      CookieCloudServer.Migrator,
-      {Bandit, plug: CookieCloudServer.Router, port: port}
-      # Starts a worker by calling: CookieCloudServer.Worker.start_link(arg)
-      # {CookieCloudServer.Worker, arg}
-    ]
+    children =
+      [
+        CookieCloudServer.Repo,
+        # Automatically run database migration (blocks until completion)
+        CookieCloudServer.Migrator
+      ] ++ http_children()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: CookieCloudServer.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp http_children do
+    port = Application.get_env(:cookie_cloud_server, CookieCloudServer.Router)[:port] || 4000
+
+    # port 0 means "do not start HTTP server" (used in tests with Plug.Test)
+    if port > 0 do
+      [{Bandit, plug: CookieCloudServer.Router, port: port}]
+    else
+      []
+    end
   end
 end

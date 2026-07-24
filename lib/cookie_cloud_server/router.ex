@@ -5,6 +5,8 @@ defmodule CookieCloudServer.Router do
 
   @body_length 50_000_000
 
+  plug(:fetch_query_params)
+
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
