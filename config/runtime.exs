@@ -1,9 +1,9 @@
 import Config
 
-password =
-  System.get_env("COOKIE_CLOUD_SERVER_PASSWORD") ||
-    raise "COOKIE_CLOUD_SERVER_PASSWORD is missing. Please export it in your shell or .env"
-
+# Server password is optional.
+# - When set: enables decrypt-cache on /update and admin Bearer export on /get
+# - When unset: pure ciphertext store mode (official CookieCloud compatible)
+password = System.get_env("COOKIE_CLOUD_SERVER_PASSWORD")
 config :cookie_cloud_server, :sync_password, password
 
 port = String.to_integer(System.get_env("PORT") || "4000")
