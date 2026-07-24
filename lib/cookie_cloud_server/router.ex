@@ -2,9 +2,13 @@ defmodule CookieCloudServer.Router do
   use Plug.Router
 
   alias CookieCloudServer.{Auth, Reader, Sync, Adapters.Netscape}
+  alias CookieCloudServer.Plugs.{ApiRoot, Cors, RateLimit}
 
   @body_length 50_000_000
 
+  plug(ApiRoot)
+  plug(Cors)
+  plug(RateLimit)
   plug(:fetch_query_params)
 
   plug(Plug.Parsers,
@@ -20,6 +24,17 @@ defmodule CookieCloudServer.Router do
 
   get "/" do
     send_resp(conn, 200, "Hello from cookiecloud!")
+  end
+
+  get "/health" do
+    started = Application.get_env(:cookie_cloud_server, :started_at_ms) || System.system_time(:millisecond)
+    uptime = max(div(System.system_time(:millisecond) - started, 1000), 0)
+
+    render_json(conn, 200, %{
+      status: "OK",
+      timestamp: DateTime.utc_now() |> DateTime.to_iso8601(),
+      uptime: uptime
+    })
   end
 
   post "/update" do
@@ -62,7 +77,7 @@ defmodule CookieCloudServer.Router do
   end
 
   defp handle_get(conn, uuid) do
-    unless Sync.valid_uuid?(uuid) do
+    if not Sync.valid_uuid?(uuid) do
       send_resp(conn, 400, "Bad Request")
     else
       case Sync.get(uuid) do

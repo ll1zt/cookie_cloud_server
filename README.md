@@ -1,14 +1,16 @@
 # CookieCloud Server (Elixir)
 
-An Elixir implementation of the [CookieCloud](https://github.com/easychen/CookieCloud) server. It allows you to synchronize and manage browser cookies securely.
+An Elixir implementation of the [CookieCloud](https://github.com/easychen/CookieCloud) server. Compatible with the official browser extension and client scripts, with optional server-side decrypt cache and export helpers.
 
 ## Features
 
-- **End-to-End Encryption**: Supports Legacy and AES-128-CBC encryption modes.
-- **SQLite3 Backend**: easy-to-manage storage for your sync records.
-- **Netscape Format Export**: Export cookies in the standard Netscape format (`cookies.txt`) for use with CLI tools.
-- **Modern Web Stack**: Powered by [Bandit](https://github.com/mtrudel/bandit) and [Plug](https://github.com/elixir-plug/plug).
-- **Nix Powered**: Fully reproducible development environment and Docker builds via Nix Flakes.
+- **CookieCloud protocol compatible**: stores ciphertext by default (true E2E-friendly sync relay).
+- **Legacy + AES-128-CBC-fixed** crypto modes.
+- **Optional admin decrypt/export** when `COOKIE_CLOUD_SERVER_PASSWORD` is set (`raw` / `full` / `netscape`).
+- **SQLite3 Backend** via Ecto.
+- **API_ROOT / CORS / rate limit / health** for production self-hosting.
+- **Modern Web Stack**: [Bandit](https://github.com/mtrudel/bandit) + [Plug](https://github.com/elixir-plug/plug).
+- **Nix Powered**: reproducible dev shell and Docker image via Flakes.
 
 ## Getting Started
 
@@ -27,51 +29,47 @@ An Elixir implementation of the [CookieCloud](https://github.com/easychen/Cookie
    ```
 
 2. **Using Nix (Recommended)**:
-   Enter the development shell:
    ```bash
    nix develop
-   ```
-   Or run the server directly:
-   ```bash
+   # or
    COOKIE_CLOUD_SERVER_PASSWORD="your-password" nix run . -- start
    ```
 
 3. **Using Mix (Manual)**:
    ```bash
    mix deps.get
+   mix run --no-halt
    ```
 
 ## Configuration
 
-Set the following environment variables. You can use a `.env` file (see `.env.example`).
+Set environment variables (see `.env.example`). `.env` lines may be either `KEY=value` or `export KEY=value` when loaded by Mix.
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `COOKIE_CLOUD_SERVER_PASSWORD` | **Required**. Password for decryption and API auth. | - |
-| `PORT` | The port the server listens on. | `4000` |
-| `DATABASE_PATH` | Path to the SQLite database file. | `data/cookie_cloud_server.db` |
-| `RELEASE_COOKIE` | Secret for Elixir node clustering. | `cookie` |
+| `COOKIE_CLOUD_SERVER_PASSWORD` | Optional. Enables decrypt-cache + admin Bearer export. | unset (ciphertext-only mode) |
+| `PORT` | Listen port. Official project often uses `8088`. | `4000` |
+| `DATABASE_PATH` | SQLite file path. | `data/cookie_cloud_server.db` |
+| `API_ROOT` | Optional URL prefix, e.g. `/cookie`. | empty |
+| `CORS_ORIGINS` | `Access-Control-Allow-Origin` value. | `*` |
+| `RATE_LIMIT_MAX` | Max requests per IP per window (`0` disables). | `100` |
+| `RATE_LIMIT_WINDOW_MS` | Rate limit window in ms. | `900000` (15m) |
+| `RELEASE_COOKIE` | Elixir node cookie. | `cookie` |
 
 ## Deployment
 
 ### Docker Compose (Recommended)
 
-1. Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   # Edit .env and set your COOKIE_CLOUD_SERVER_PASSWORD
-   ```
+```bash
+cp .env.example .env
+# edit .env
+docker compose up -d
+```
 
-2. Start the server:
-   ```bash
-   docker compose up -d
-   ```
-
-The image is automatically built and pushed to GitHub Container Registry (GHCR) using Nix for maximum consistency.
+Image is built and pushed to GHCR via Nix on `main`.
 
 ### Manual Build (Nix)
 
-To build a production Docker image tarball locally:
 ```bash
 nix build .#docker
 docker load < result
@@ -79,18 +77,39 @@ docker load < result
 
 ## API Endpoints
 
-### 1. Root
-- **GET** `/`
-- Returns a simple greeting.
+### Root
+- **GET** `/` — greeting
+- **GET** `/health` — `{"status":"OK","timestamp":"...","uptime":...}`
 
-### 2. Update Cookies
+### Update (official compatible)
 - **POST** `/update`
-- Body: `{"uuid": "...", "encrypted": "...", "crypto_type": "..."}`
-- Syncs and updates cookies for the given UUID.
+- Body (JSON, form-urlencoded, or multipart): `uuid`, `encrypted`, optional `crypto_type` (`legacy` \| `aes-128-cbc-fixed`)
+- Always stores **ciphertext**. If server password can decrypt, also refreshes optional plaintext cache. Decrypt failure does **not** fail the upload.
+- Response: `{"action":"done"}`
 
-### 3. Get Cookies
-- **GET** `/get/:uuid?token=<PASSWORD>&format=<FORMAT>&domain=<DOMAIN>`
-- **Authorization**: Requires the `COOKIE_CLOUD_SERVER_PASSWORD` as a token (via query param `token` or `Authorization: Bearer <token>` header).
-- **Parameters**:
-  - `format`: `raw` (default) or `netscape`.
-  - `domain`: Optional domain filter (e.g., `google.com`).
+### Get (official compatible + admin export)
+
+- **GET|POST** `/get/:uuid`
+
+| Mode | How | Response |
+| :--- | :--- | :--- |
+| Ciphertext (default) | no password / no admin token | `{"encrypted":"...","crypto_type":"..."}` |
+| Client decrypt | body/query `password` | decrypted full payload |
+| Admin export | `Authorization: Bearer <COOKIE_CLOUD_SERVER_PASSWORD>` or `?token=` | see formats below |
+
+Admin query params:
+- `format`: `raw` (default, flat cookie list), `full` (entire decrypted object), `netscape` (`cookies.txt`)
+- `domain`: optional domain suffix filter (admin modes)
+- `crypto_type`: optional override for client decrypt path
+
+## Compatibility notes
+
+This server can be used as a drop-in host for the official CookieCloud extension and scripts (`examples/decrypt.py`, Playwright helpers): they upload ciphertext and download ciphertext (or decrypt locally / with client password).
+
+Admin export features are **extras** for automation when you intentionally share the sync password with the server.
+
+## Development
+
+```bash
+mix test
+```

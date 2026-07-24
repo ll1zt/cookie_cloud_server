@@ -1,11 +1,19 @@
 if File.exists?(".env") do
   File.stream!(".env")
   |> Stream.map(&String.trim/1)
-  |> Stream.filter(&String.starts_with?(&1, "export "))
+  |> Stream.reject(&(&1 == "" or String.starts_with?(&1, "#")))
   |> Enum.each(fn line ->
-    [_, var_string] = String.split(line, "export ", parts: 2)
-    [key, value] = String.split(var_string, "=", parts: 2)
-    System.put_env(key, value)
+    line =
+      if String.starts_with?(line, "export ") do
+        String.replace_prefix(line, "export ", "")
+      else
+        line
+      end
+
+    case String.split(line, "=", parts: 2) do
+      [key, value] -> System.put_env(String.trim(key), String.trim(value))
+      _ -> :ok
+    end
   end)
 end
 

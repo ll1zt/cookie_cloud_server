@@ -7,6 +7,8 @@ defmodule CookieCloudServer.Application do
 
   @impl true
   def start(_type, _args) do
+    CookieCloudServer.Plugs.RateLimit.setup!()
+
     children =
       [
         CookieCloudServer.Repo,

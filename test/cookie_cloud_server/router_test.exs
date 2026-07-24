@@ -132,6 +132,31 @@ defmodule CookieCloudServer.RouterTest do
     assert conn.resp_body =~ "cookiecloud"
   end
 
+  test "GET /health returns OK json" do
+    conn = conn(:get, "/health") |> Router.call(@opts)
+    assert conn.status == 200
+    body = Jason.decode!(conn.resp_body)
+    assert body["status"] == "OK"
+    assert is_binary(body["timestamp"])
+  end
+
+  test "CORS headers are present and OPTIONS is 204" do
+    conn = conn(:get, "/") |> Router.call(@opts)
+    assert get_resp_header(conn, "access-control-allow-origin") == ["*"]
+
+    conn = conn(:options, "/update") |> Router.call(@opts)
+    assert conn.status == 204
+  end
+
+  test "API_ROOT prefix is stripped" do
+    Application.put_env(:cookie_cloud_server, :api_root, "/cookie")
+    on_exit(fn -> Application.put_env(:cookie_cloud_server, :api_root, "") end)
+
+    conn = conn(:get, "/cookie/health") |> Router.call(@opts)
+    assert conn.status == 200
+    assert Jason.decode!(conn.resp_body)["status"] == "OK"
+  end
+
   defp seed_record(uuid, encrypted, crypto_type) do
     %SyncRecord{}
     |> SyncRecord.changeset(%{

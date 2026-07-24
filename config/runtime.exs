@@ -11,4 +11,21 @@ if config_env() != :test do
   database_path = System.get_env("DATABASE_PATH") || "data/cookie_cloud_server.db"
   database_path |> Path.dirname() |> File.mkdir_p!()
   config :cookie_cloud_server, CookieCloudServer.Repo, database: database_path
+
+  api_root =
+    System.get_env("API_ROOT", "")
+    |> String.trim()
+    |> String.trim_trailing("/")
+
+  config :cookie_cloud_server, :api_root, api_root
+
+  cors_origins = System.get_env("CORS_ORIGINS") || "*"
+  config :cookie_cloud_server, :cors_origins, cors_origins
+
+  rate_limit_max = String.to_integer(System.get_env("RATE_LIMIT_MAX") || "100")
+  rate_limit_window_ms = String.to_integer(System.get_env("RATE_LIMIT_WINDOW_MS") || "900000")
+  config :cookie_cloud_server, :rate_limit_max, rate_limit_max
+  config :cookie_cloud_server, :rate_limit_window_ms, rate_limit_window_ms
 end
+
+config :cookie_cloud_server, :started_at_ms, System.system_time(:millisecond)
