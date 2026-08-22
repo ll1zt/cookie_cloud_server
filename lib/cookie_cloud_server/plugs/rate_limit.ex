@@ -50,17 +50,28 @@ defmodule CookieCloudServer.Plugs.RateLimit do
     end
   end
 
+  # Only honour X-Forwarded-For when explicitly deployed behind a trusted
+  # proxy; otherwise clients can spoof the header to bypass the limiter.
   defp client_ip(conn) do
-    case get_req_header(conn, "x-forwarded-for") do
-      [forwarded | _] ->
-        forwarded |> String.split(",", parts: 2) |> hd() |> String.trim()
+    if trust_proxy?() do
+      case get_req_header(conn, "x-forwarded-for") do
+        [forwarded | _] ->
+          forwarded |> String.split(",", parts: 2) |> hd() |> String.trim()
 
-      _ ->
-        case conn.remote_ip do
-          {a, b, c, d} -> Enum.join([a, b, c, d], ".")
-          tuple when is_tuple(tuple) -> tuple |> Tuple.to_list() |> Enum.join(":")
-          _ -> "unknown"
-        end
+        _ ->
+          format_ip(conn.remote_ip)
+      end
+    else
+      format_ip(conn.remote_ip)
     end
   end
+
+  defp trust_proxy?, do: Application.get_env(:cookie_cloud_server, :trust_proxy, false)
+
+  defp format_ip({a, b, c, d}), do: Enum.join([a, b, c, d], ".")
+
+  defp format_ip(tuple) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> Enum.join(":")
+
+  defp format_ip(_), do: "unknown"
 end

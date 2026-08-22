@@ -22,10 +22,22 @@ if config_env() != :test do
   cors_origins = System.get_env("CORS_ORIGINS") || "*"
   config :cookie_cloud_server, :cors_origins, cors_origins
 
+  # Set to true only when running behind a trusted reverse proxy that strips
+  # or overwrites X-Forwarded-For; otherwise clients can spoof their IP.
+  trust_proxy = System.get_env("TRUST_PROXY", "false") in ["1", "true", "yes"]
+  config :cookie_cloud_server, :trust_proxy, trust_proxy
+
   rate_limit_max = String.to_integer(System.get_env("RATE_LIMIT_MAX") || "100")
   rate_limit_window_ms = String.to_integer(System.get_env("RATE_LIMIT_WINDOW_MS") || "900000")
   config :cookie_cloud_server, :rate_limit_max, rate_limit_max
   config :cookie_cloud_server, :rate_limit_window_ms, rate_limit_window_ms
+
+  sweep_interval_ms =
+    String.to_integer(
+      System.get_env("RATE_LIMIT_SWEEP_INTERVAL_MS") || Integer.to_string(rate_limit_window_ms)
+    )
+
+  config :cookie_cloud_server, :rate_limit_sweep_interval_ms, sweep_interval_ms
 end
 
 config :cookie_cloud_server, :started_at_ms, System.system_time(:millisecond)

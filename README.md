@@ -54,6 +54,8 @@ Set environment variables (see `.env.example`). `.env` lines may be either `KEY=
 | `CORS_ORIGINS` | `Access-Control-Allow-Origin` value. | `*` |
 | `RATE_LIMIT_MAX` | Max requests per IP per window (`0` disables). | `100` |
 | `RATE_LIMIT_WINDOW_MS` | Rate limit window in ms. | `900000` (15m) |
+| `RATE_LIMIT_SWEEP_INTERVAL_MS` | Sweep interval for expired rate-limit windows. | window value |
+| `TRUST_PROXY` | Honour `X-Forwarded-For`; set to `true` only behind a trusted reverse proxy. | `false` |
 | `RELEASE_COOKIE` | Elixir node cookie. | `cookie` |
 
 ## Deployment

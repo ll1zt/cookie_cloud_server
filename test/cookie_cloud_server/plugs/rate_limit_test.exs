@@ -4,6 +4,7 @@ defmodule CookieCloudServer.Plugs.RateLimitTest do
   import Plug.Conn
   import Plug.Test
 
+  alias CookieCloudServer.Plugs.RateLimit
   alias CookieCloudServer.Plugs.RateLimit.Sweeper
 
   @table :cookie_cloud_rate_limit
@@ -34,4 +35,36 @@ defmodule CookieCloudServer.Plugs.RateLimitTest do
     assert :ets.lookup(@table, {"5.6.7.8", current_window - 2}) == []
     assert :ets.lookup(@table, {"9.9.9.9", current_window}) != []
   end
+
+  test "ignores X-Forwarded-For when TRUST_PROXY is disabled" do
+    Application.put_env(:cookie_cloud_server, :rate_limit_max, 1)
+    Application.put_env(:cookie_cloud_server, :trust_proxy, false)
+
+    request = fn xff ->
+      conn(:get, "/")
+      |> put_req_header("x-forwarded-for", xff)
+      |> call_limit()
+    end
+
+    # Same remote_ip: the spoofed header must not create separate buckets
+    assert %{status: nil, halted: false} = request.("1.2.3.4")
+    assert %{status: 429} = request.("5.6.7.8")
+  end
+
+  test "honours X-Forwarded-For when TRUST_PROXY is enabled" do
+    Application.put_env(:cookie_cloud_server, :rate_limit_max, 1)
+    Application.put_env(:cookie_cloud_server, :trust_proxy, true)
+
+    request = fn xff ->
+      conn(:get, "/")
+      |> put_req_header("x-forwarded-for", xff)
+      |> call_limit()
+    end
+
+    assert %{status: nil, halted: false} = request.("1.2.3.4")
+    assert %{status: nil, halted: false} = request.("5.6.7.8")
+    assert %{status: 429} = request.("1.2.3.4")
+  end
+
+  defp call_limit(conn), do: RateLimit.call(conn, RateLimit.init([]))
 end
