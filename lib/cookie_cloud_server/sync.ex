@@ -6,6 +6,8 @@ defmodule CookieCloudServer.Sync do
   used by admin export features when a server password is configured.
   """
 
+  require Logger
+
   alias CookieCloudServer.{Crypto, Repo, Schema.SyncRecord}
 
   @uuid_re ~r/^[A-Za-z0-9_-]{8,128}$/
@@ -21,7 +23,8 @@ defmodule CookieCloudServer.Sync do
     with :ok <- validate_uuid(uuid),
          :ok <- validate_encrypted(encrypted),
          :ok <- validate_crypto_type(crypto_type) do
-      {data, client_updated_at} = maybe_decrypt_cache(uuid, encrypted, crypto_type, server_password)
+      {data, client_updated_at} =
+        maybe_decrypt_cache(uuid, encrypted, crypto_type, server_password)
 
       params = %{
         uuid: uuid,
@@ -34,7 +37,8 @@ defmodule CookieCloudServer.Sync do
       %SyncRecord{}
       |> SyncRecord.changeset(params)
       |> Repo.insert(
-        on_conflict: {:replace, [:encrypted, :crypto_type, :data, :client_updated_at, :updated_at]},
+        on_conflict:
+          {:replace, [:encrypted, :crypto_type, :data, :client_updated_at, :updated_at]},
         conflict_target: :uuid
       )
     end
@@ -109,14 +113,27 @@ defmodule CookieCloudServer.Sync do
   end
 
   defp maybe_refresh_cache(%SyncRecord{} = record, data) do
-    record
-    |> SyncRecord.changeset(%{
-      data: data,
-      client_updated_at: extract_client_time(data)
-    })
-    |> Repo.update()
-  rescue
-    _ -> :ok
+    changeset =
+      SyncRecord.changeset(record, %{
+        data: data,
+        client_updated_at: extract_client_time(data)
+      })
+
+    try do
+      case Repo.update(changeset) do
+        {:ok, _} ->
+          :ok
+
+        {:error, %Ecto.Changeset{errors: errors}} ->
+          Logger.error("Plaintext cache refresh failed for #{record.uuid}: #{inspect(errors)}")
+      end
+    rescue
+      e ->
+        # Cache refresh must never fail the /update request, but stay observable
+        Logger.error(
+          "Plaintext cache refresh crashed for #{record.uuid}: #{Exception.message(e)}"
+        )
+    end
   end
 
   defp extract_client_time(%{"update_time" => update_time_str}) when is_binary(update_time_str) do
