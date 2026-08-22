@@ -1,7 +1,7 @@
 defmodule CookieCloudServer.Router do
   use Plug.Router
 
-  alias CookieCloudServer.{Auth, Reader, Sync}
+  alias CookieCloudServer.{Auth, Reader, Sync, Redact}
   alias CookieCloudServer.Adapters.{Header, Netscape}
   alias CookieCloudServer.Plugs.{ApiRoot, Cors, RateLimit}
 
@@ -165,11 +165,20 @@ defmodule CookieCloudServer.Router do
           "raw" ->
             render_json(conn, 200, cookies)
 
+          "agent" ->
+            render_json(conn, 200, %{
+              uuid: record.uuid,
+              crypto_type: record.crypto_type || "legacy",
+              client_updated_at: record.client_updated_at,
+              cookies: Redact.masked_cookies(cookies),
+              local_storage_keys: Redact.local_storage_keys(data, domain_filter)
+            })
+
           _ ->
             send_resp(
               conn,
               400,
-              "Unknown format. Supported: raw, full, netscape, header, env"
+              "Unknown format. Supported: raw, full, netscape, header, env, agent"
             )
         end
 

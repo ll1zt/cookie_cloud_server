@@ -6,7 +6,7 @@ An Elixir implementation of the [CookieCloud](https://github.com/easychen/Cookie
 
 - **CookieCloud protocol compatible**: stores ciphertext by default (true E2E-friendly sync relay).
 - **Legacy + AES-128-CBC-fixed** crypto modes.
-- **Optional admin decrypt/export** when `COOKIE_CLOUD_SERVER_PASSWORD` is set (`raw` / `full` / `netscape`).
+- **Optional admin decrypt/export** when `COOKIE_CLOUD_SERVER_PASSWORD` is set (`raw` / `full` / `netscape` / `agent`).
 - **SQLite3 Backend** via Ecto.
 - **API_ROOT / CORS / rate limit / health** for production self-hosting.
 - **Modern Web Stack**: [Bandit](https://github.com/mtrudel/bandit) + [Plug](https://github.com/elixir-plug/plug).
@@ -106,9 +106,41 @@ Admin query params:
   - `netscape` — `cookies.txt`
   - `header` — `name=value; name2=value2` (**RSSHub / curl Cookie header**)
   - `env` — one dotenv line: `ENV=name=value; ...` (for RSSHub `secretFiles`)
+  - `agent` — privacy-safe JSON for AI agents: cookie metadata + masked values, local storage reduced to key names (see below)
 - `domain`: optional domain filter (e.g. `bilibili.com`)
 - `env`: env var name when `format=env` (default `COOKIE`)
 - `crypto_type`: optional override for client decrypt path
+
+### Agent view (`format=agent`)
+
+A redacted snapshot designed for LLM/agent tooling to reason about what is synced without ever touching secret material:
+
+```bash
+curl -sS -H "Authorization: Bearer $COOKIE_CLOUD_SERVER_PASSWORD" \
+  "http://127.0.0.1:4000/get/$UUID?format=agent&domain=deepseek.com" | jq
+```
+
+```json
+{
+  "uuid": "your-uuid",
+  "crypto_type": "aes-128-cbc-fixed",
+  "client_updated_at": "2026-08-22T05:55:51.919Z",
+  "cookies": [
+    {"name":"ds_session_id","domain":".deepseek.com","path":"/","secure":true,"value":"********"}
+  ],
+  "local_storage_keys": {
+    "LS-chat.deepseek.com": ["userToken", "theme"]
+  }
+}
+```
+
+Masking rules:
+- Cookie `value` → `*` repeated up to 8 chars (length not leaked); empty stays empty
+- All other cookie fields are kept verbatim (`name`, `domain`, `path`, flags, `expirationDate`)
+- Local storage **values are never included** — only sorted key names per bucket
+- The same `domain=` filter applies to cookies and local storage buckets
+
+Note: like all admin formats this requires the plaintext decrypt cache, i.e. the extension must sync with the **same** password as `COOKIE_CLOUD_SERVER_PASSWORD`. Without it the endpoint answers HTTP 409.
 
 ### RSSHub integration
 

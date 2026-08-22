@@ -67,12 +67,17 @@ defmodule CookieCloudServer.Reader do
     end)
   end
 
-  defp bucket_match?(bucket, needle) when is_binary(bucket) do
+  @doc """
+  Match a payload bucket name (domain/host) against a filter needle.
+  Public so views like Redact can apply the same filtering as cookies.
+  """
+  def bucket_match?(bucket, needle) when is_binary(bucket) and is_binary(needle) do
     b = normalize_domain(bucket)
-    b == needle or String.ends_with?(b, "." <> needle) or String.ends_with?(needle, "." <> b)
+    n = normalize_domain(needle)
+    b == n or String.ends_with?(b, "." <> n) or String.ends_with?(n, "." <> b)
   end
 
-  defp bucket_match?(_, _), do: false
+  def bucket_match?(_, _), do: false
 
   defp cookies_match_domain?(cookies, needle) when is_list(cookies) do
     Enum.any?(cookies, fn cookie ->

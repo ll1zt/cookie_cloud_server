@@ -208,6 +208,44 @@ defmodule CookieCloudServer.RouterTest do
     assert conn.resp_body == "BILIBILI_COOKIE_123=SESSDATA=abc; bili_jct=xyz"
   end
 
+  test "admin format=agent returns masked values and LS key names" do
+    plain = %{
+      "cookie_data" => %{
+        "deepseek.com" => [
+          %{
+            "name" => "ds_session_id",
+            "value" => "top-secret",
+            "domain" => ".deepseek.com",
+            "path" => "/",
+            "secure" => true
+          }
+        ]
+      },
+      "local_storage_data" => %{
+        "LS-chat.deepseek.com" => %{"userToken" => "jwt-token-value"}
+      },
+      "update_time" => "2026-08-22T05:55:51.919Z"
+    }
+
+    {_p, encrypted} = build_encrypted(@uuid, @server_password, plain)
+    seed_record(@uuid, encrypted, "aes-128-cbc-fixed")
+
+    conn =
+      conn(:get, "/get/#{@uuid}?format=agent&domain=deepseek.com")
+      |> put_req_header("authorization", "Bearer #{@server_password}")
+      |> Router.call(@opts)
+
+    assert conn.status == 200
+    body = Jason.decode!(conn.resp_body)
+
+    [%{"name" => "ds_session_id", "value" => masked}] = body["cookies"]
+    assert String.contains?(masked, "*")
+    refute String.contains?(masked, "top-secret")
+    assert body["local_storage_keys"] == %{"LS-chat.deepseek.com" => ["userToken"]}
+    # raw secret must never appear anywhere in the response
+    refute conn.resp_body =~ "jwt-token-value"
+  end
+
   defp seed_record(uuid, encrypted, crypto_type) do
     %SyncRecord{}
     |> SyncRecord.changeset(%{
