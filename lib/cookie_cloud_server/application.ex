@@ -7,13 +7,14 @@ defmodule CookieCloudServer.Application do
 
   @impl true
   def start(_type, _args) do
-    CookieCloudServer.Plugs.RateLimit.setup!()
-
     children =
       [
         CookieCloudServer.Repo,
         # Automatically run database migration (blocks until completion)
-        CookieCloudServer.Migrator
+        CookieCloudServer.Migrator,
+        # Creates the ETS table and sweeps expired rate-limit windows;
+        # must start before the HTTP listener accepts requests
+        CookieCloudServer.Plugs.RateLimit.Sweeper
       ] ++ http_children()
 
     # See https://hexdocs.pm/elixir/Supervisor.html

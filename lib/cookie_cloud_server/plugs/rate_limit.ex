@@ -1,9 +1,17 @@
 defmodule CookieCloudServer.Plugs.RateLimit do
   @moduledoc """
   Simple per-IP fixed-window rate limiter using ETS.
+
+  Counters are keyed by `{ip, window}`; expired windows are deleted
+  periodically by `CookieCloudServer.Plugs.RateLimit.Sweeper`.
+
+  The named table is created by the sweeper, which must be started before the
+  HTTP listener (see `CookieCloudServer.Application`) so it exists once
+  requests are accepted.
   """
 
   @behaviour Plug
+
   import Plug.Conn
 
   @table :cookie_cloud_rate_limit
@@ -11,49 +19,35 @@ defmodule CookieCloudServer.Plugs.RateLimit do
   @impl true
   def init(opts), do: opts
 
-  @doc "Create ETS table (called from Application)."
-  def setup! do
-    case :ets.whereis(@table) do
-      :undefined ->
-        :ets.new(@table, [:named_table, :public, :set, read_concurrency: true, write_concurrency: true])
-
-      _ ->
-        @table
-    end
-  end
-
   @impl true
   def call(conn, _opts) do
     max = Application.get_env(:cookie_cloud_server, :rate_limit_max, 100)
-    window_ms = Application.get_env(:cookie_cloud_server, :rate_limit_window_ms, 15 * 60 * 1000)
 
     if max <= 0 do
       conn
     else
-      ip = client_ip(conn)
-      now = System.system_time(:millisecond)
-      window = div(now, window_ms)
-      key = {ip, window}
-
-      count =
-        case :ets.update_counter(@table, key, {2, 1}, {key, 0}) do
-          n when is_integer(n) -> n
-        end
-
-      # Opportunistic cleanup of old windows for this IP is skipped for simplicity.
-      if count > max do
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(429, Jason.encode!(%{error: "Too Many Requests"}))
-        |> halt()
-      else
-        conn
-      end
+      check_rate(conn, max)
     end
-  rescue
-    ArgumentError ->
-      # Table missing (e.g. early test) — fail open
+  end
+
+  defp check_rate(conn, max) do
+    window_ms =
+      Application.get_env(:cookie_cloud_server, :rate_limit_window_ms, 15 * 60 * 1000)
+
+    ip = client_ip(conn)
+    window = div(System.system_time(:millisecond), window_ms)
+    key = {ip, window}
+
+    count = :ets.update_counter(@table, key, {2, 1}, {key, 0})
+
+    if count > max do
       conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(429, Jason.encode!(%{error: "Too Many Requests"}))
+      |> halt()
+    else
+      conn
+    end
   end
 
   defp client_ip(conn) do
