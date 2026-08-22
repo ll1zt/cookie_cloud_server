@@ -9,7 +9,7 @@ defmodule CookieCloudServer.Migrator do
     # Synchronous Migration
     path = Application.app_dir(:cookie_cloud_server, "priv/repo/migrations")
     Ecto.Migrator.run(CookieCloudServer.Repo, path, :up, all: true)
-    
+
     {:ok, nil}
   end
 end

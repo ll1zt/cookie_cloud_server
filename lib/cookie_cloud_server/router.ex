@@ -28,7 +28,10 @@ defmodule CookieCloudServer.Router do
   end
 
   get "/health" do
-    started = Application.get_env(:cookie_cloud_server, :started_at_ms) || System.system_time(:millisecond)
+    started =
+      Application.get_env(:cookie_cloud_server, :started_at_ms) ||
+        System.system_time(:millisecond)
+
     uptime = max(div(System.system_time(:millisecond) - started, 1000), 0)
 
     render_json(conn, 200, %{

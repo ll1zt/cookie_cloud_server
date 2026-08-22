@@ -77,7 +77,10 @@ defmodule CookieCloudServer.Reader do
   defp cookies_match_domain?(cookies, needle) when is_list(cookies) do
     Enum.any?(cookies, fn cookie ->
       domain = normalize_domain(cookie["domain"] || cookie[:domain] || "")
-      domain != "" and (domain == needle or String.ends_with?(domain, needle) or String.ends_with?(domain, "." <> needle))
+
+      domain != "" and
+        (domain == needle or String.ends_with?(domain, needle) or
+           String.ends_with?(domain, "." <> needle))
     end)
   end
 

@@ -74,7 +74,12 @@ defmodule CookieCloudServer.RouterTest do
   end
 
   test "POST /get/:uuid decrypts with client password" do
-    plain = %{"cookie_data" => %{"example.com" => [%{"name" => "a", "value" => "1", "domain" => ".example.com"}]}}
+    plain = %{
+      "cookie_data" => %{
+        "example.com" => [%{"name" => "a", "value" => "1", "domain" => ".example.com"}]
+      }
+    }
+
     {_p, encrypted} = build_encrypted(@uuid, @password, plain)
     seed_record(@uuid, encrypted, "aes-128-cbc-fixed")
 
@@ -92,7 +97,13 @@ defmodule CookieCloudServer.RouterTest do
     plain = %{
       "cookie_data" => %{
         "example.com" => [
-          %{"name" => "sid", "value" => "1", "domain" => ".example.com", "path" => "/", "secure" => true}
+          %{
+            "name" => "sid",
+            "value" => "1",
+            "domain" => ".example.com",
+            "path" => "/",
+            "secure" => true
+          }
         ]
       }
     }

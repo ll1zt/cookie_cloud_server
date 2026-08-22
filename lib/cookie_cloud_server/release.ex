@@ -12,7 +12,7 @@ defmodule CookieCloudServer.Release do
 
   def migrate do
     Application.load(:cookie_cloud_server)
-    
+
     path = Application.app_dir(:cookie_cloud_server, "priv/repo/migrations")
     Ecto.Migrator.run(CookieCloudServer.Repo, path, :up, all: true)
   end

@@ -10,6 +10,7 @@ defmodule CookieCloudServer.CryptoTest do
     # Build a known-good aes-128-cbc-fixed ciphertext with Erlang crypto
     uuid = @aes128_uuid
     password = @aes128_password
+
     passphrase =
       :crypto.hash(:md5, "#{uuid}-#{password}")
       |> Base.encode16(case: :lower)
